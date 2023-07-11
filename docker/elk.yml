@@ -1,0 +1,151 @@
+version: '3.8'
+
+networks:
+  42gg:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.26.0.0/24
+
+services:
+  tomcat:
+    container_name: tomcat
+    image: wken5577/42gg-server
+    restart:
+      unless-stopped
+    depends_on:
+      - mysql
+      - redis
+      - nginx
+      - elasticsearch
+    env_file:
+      - .env
+    volumes:
+      - /home/ec2-user/logs:/app/logs
+    networks:
+      42gg:
+        ipv4_address: 172.26.0.13
+
+  nginx:
+    container_name: nginx
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    restart:
+      unless-stopped
+    networks:
+      42gg:
+        ipv4_address: 172.26.0.10
+
+  redis:
+    container_name: redis
+    image: redis:6.2.7
+    ports:
+      - "6379:6379"
+    restart:
+      unless-stopped
+    networks:
+      42gg:
+        ipv4_address: 172.26.0.12
+
+  mysql:
+    container_name: mysql
+    image: mysql:8.0.33
+    ports:
+      - "3306:3306"
+    volumes:
+      - /var/lib/mysql:/var/lib/mysql
+    env_file:
+      - .env
+    restart:
+      unless-stopped
+    networks:
+      42gg:
+        ipv4_address: 172.26.0.11
+
+  prometheus:
+    container_name: prometheus
+    build:
+      context: ./prometheus
+      dockerfile: Dockerfile
+    restart:
+      unless-stopped
+    networks:
+      42gg:
+
+  grafana:
+    container_name: grafana
+    build:
+      context: ./grafana
+      dockerfile: Dockerfile
+    volumes:
+      - /var/lib/grafana:/var/lib/grafana:rw
+    restart:
+      unless-stopped
+    networks:
+      42gg:
+
+  elasticsearch:
+    image: elasticsearch
+    container_name: elasticsearch
+    build:
+      context: ./elk/elasticsearch/
+    volumes:
+      - /home/ec2-user/docker/elk/elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro,Z
+    expose:
+      - "9200"
+      - "9300"
+    environment:
+      node.name: elastic
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      ELASTIC_PASSWORD: "qwer"
+      # Bootstrap password.
+      # Used to initialize the keystore during the initial startup of
+      # Elasticsearch. Ignored on subsequent runs.
+      # Use single node discovery in order to disable production mode and avoid bootstrap checks.
+      # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
+      discovery.type: single-node
+    networks:
+      42gg:
+        ipv4_address: 172.26.0.21
+    restart: unless-stopped
+
+  logstash:
+    image: logstash
+    container_name: logstash
+    build:
+      context: ./elk/logstash/
+    volumes:
+      - /home/ec2-user/docker/elk/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro,Z
+      - /home/ec2-user/docker/elk/logstash/pipeline:/usr/share/logstash/pipeline:ro,Z
+    expose:
+      - "5044"
+      - "5000"
+      - "9600"
+    environment:
+      LS_JAVA_OPTS: "-Xms256m -Xmx256m"
+    networks:
+      42gg:
+        ipv4_address: 172.26.0.20
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+  kibana:
+    image: kibana
+    container_name: kibana
+    build:
+      context: ./elk/kibana/
+    volumes:
+      - /home/ec2-user/docker/elk/kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml:ro,Z
+    expose:
+      - "5601"
+    networks:
+      42gg:
+        ipv4_address: 172.26.0.22
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped

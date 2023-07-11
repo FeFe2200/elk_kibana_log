@@ -1,0 +1,5 @@
+grafana/*
+logs/*
+docker/grafana/*
+docker/prometheus/*
+mysql/*
