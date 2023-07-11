@@ -3,3 +3,4 @@ logs/*
 docker/grafana/*
 docker/prometheus/*
 mysql/*
+docker/tomcat/server-42gg.jar
